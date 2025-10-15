@@ -79,13 +79,33 @@
       color: #ff6600;
       font-size: 1.2em;
     }
+    #startBtn {
+      background: #FF6600;
+      color: white;
+      border: none;
+      padding: 20px 40px;
+      font-size: 1.3em;
+      border-radius: 15px;
+      cursor: pointer;
+      margin: 20px;
+      transition: 0.3s;
+    }
+    #startBtn:hover {
+      background: #ff8533;
+      transform: scale(1.05);
+    }
   </style>
 </head>
 <body>
   <h1>Votează pentru cea mai bună alegere!</h1>
   
   <div id="timer" style="font-size: 2em; color: #ff6600; margin: 20px 0;">
-    Timp rămas: <span id="timp">60</span> secunde
+    Timp rămas: <span id="timp">--</span> secunde
+  </div>
+
+  <div id="startSection" style="display: none;">
+    <button id="startBtn" onclick="startVotare()">🚀 PORNEȘTE VOTAREA (60s)</button>
+    <p style="color: #666;">Doar organizatorul apasă acest buton!</p>
   </div>
 
   <div class="optiune" onclick="vote('Mușat Mădălina+Mușat Gelu')">Mușat Mădălina+Mușat Gelu</div>
@@ -122,10 +142,11 @@
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
     const voturiRef = database.ref('voturi');
+    const timerRef = database.ref('timer');
 
-    let timpRamas = 60;
-    let votareActiva = true;
+    let votareActiva = false;
     let aVotat = localStorage.getItem('aVotat') === 'true';
+    let timerInterval = null;
 
     // Verifică conexiunea Firebase
     database.ref('.info/connected').on('value', (snapshot) => {
@@ -140,6 +161,85 @@
       }
     });
 
+    // Ascultă timer-ul din Firebase
+    timerRef.on('value', (snapshot) => {
+      const timerData = snapshot.val();
+      
+      if (!timerData || !timerData.startTime) {
+        // Nu s-a început votarea încă
+        document.getElementById('timp').textContent = '--';
+        document.getElementById('startSection').style.display = 'block';
+        document.getElementById('rezultat').innerHTML = '⏸️ Așteptăm să înceapă votarea...';
+        
+        // Dezactivează butoanele
+        const optiuni = document.querySelectorAll('.optiune');
+        optiuni.forEach(opt => {
+          opt.style.opacity = '0.5';
+          opt.style.cursor = 'not-allowed';
+          opt.style.pointerEvents = 'none';
+        });
+        return;
+      }
+
+      const startTime = timerData.startTime;
+      const duration = timerData.duration || 60;
+      const now = Date.now();
+      const elapsed = Math.floor((now - startTime) / 1000);
+      const remaining = Math.max(0, duration - elapsed);
+
+      document.getElementById('timp').textContent = remaining;
+      document.getElementById('startSection').style.display = 'none';
+
+      if (remaining > 0) {
+        votareActiva = true;
+        
+        if (!aVotat) {
+          document.getElementById('rezultat').innerHTML = 'Votarea este în curs...';
+          
+          // Activează butoanele
+          const optiuni = document.querySelectorAll('.optiune');
+          optiuni.forEach(opt => {
+            opt.style.opacity = '1';
+            opt.style.cursor = 'pointer';
+            opt.style.pointerEvents = 'auto';
+          });
+        }
+
+        // Actualizează timer-ul local la fiecare secundă
+        if (!timerInterval) {
+          timerInterval = setInterval(() => {
+            const now = Date.now();
+            const elapsed = Math.floor((now - startTime) / 1000);
+            const remaining = Math.max(0, duration - elapsed);
+            document.getElementById('timp').textContent = remaining;
+
+            if (remaining <= 0) {
+              clearInterval(timerInterval);
+              timerInterval = null;
+              votareActiva = false;
+              
+              voturiRef.once('value').then((snapshot) => {
+                const data = snapshot.val() || {};
+                afiseazaCastigatorFinal(data);
+              });
+            }
+          }, 1000);
+        }
+      } else {
+        // Timpul a expirat
+        votareActiva = false;
+        if (timerInterval) {
+          clearInterval(timerInterval);
+          timerInterval = null;
+        }
+        
+        voturiRef.once('value').then((snapshot) => {
+          const data = snapshot.val() || {};
+          afiseazaCastigatorFinal(data);
+        });
+      }
+    });
+
     if (aVotat) {
       document.getElementById('rezultat').innerHTML = '✅ Ai votat deja! Așteptăm rezultatele...';
       const optiuni = document.querySelectorAll('.optiune');
@@ -150,7 +250,7 @@
       });
     }
 
-    // Ascultă schimbările în timp real
+    // Ascultă schimbările în voturi în timp real
     voturiRef.on('value', (snapshot) => {
       const data = snapshot.val();
       if (!votareActiva && data) {
@@ -158,25 +258,25 @@
       }
     });
 
-    // Timer pentru votare
-    const timerInterval = setInterval(() => {
-      timpRamas--;
-      document.getElementById('timp').textContent = timpRamas;
-      
-      if (timpRamas <= 0) {
-        clearInterval(timerInterval);
-        votareActiva = false;
-        
-        voturiRef.once('value').then((snapshot) => {
-          const data = snapshot.val() || {};
-          afiseazaCastigatorFinal(data);
-        });
-      }
-    }, 1000);
+    // Funcție pentru a porni votarea (doar organizatorul)
+    function startVotare() {
+      const confirmare = confirm('Sigur vrei să pornești votarea? Toată lumea va vedea timer-ul pornind!');
+      if (!confirmare) return;
+
+      timerRef.set({
+        startTime: Date.now(),
+        duration: 60
+      }).then(() => {
+        console.log('✅ Votarea a început!');
+      }).catch((error) => {
+        console.error('❌ Eroare la pornirea votării:', error);
+        alert('Eroare! Verifică conexiunea la internet.');
+      });
+    }
 
     function vote(pereche) {
       if (!votareActiva) {
-        alert('Votarea s-a încheiat!');
+        alert('Votarea nu este activă!');
         return;
       }
 
