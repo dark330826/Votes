@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8">
+  <title>Vot Online - Alege preferatul tău!</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f0f0;
+      text-align: center;
+      padding: 40px;
+    }
+    h1 {
+      color: #333;
+    }
+    .optiune {
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      margin: 10px auto;
+      padding: 15px;
+      width: 250px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    .optiune:hover {
+      background: #d0f0ff;
+      transform: scale(1.05);
+    }
+    #rezultat {
+      margin-top: 20px;
+      font-weight: bold;
+    }
+    .podium {
+      display: inline-block;
+      margin: 20px;
+      padding: 20px;
+      border-radius: 15px;
+      min-width: 200px;
+    }
+    .loc1 {
+      background: linear-gradient(135deg, #FFD700, #FFA500);
+      font-size: 1.3em;
+    }
+    .loc2 {
+      background: linear-gradient(135deg, #C0C0C0, #808080);
+      font-size: 1.2em;
+    }
+    .loc3 {
+      background: linear-gradient(135deg, #CD7F32, #8B4513);
+      font-size: 1.1em;
+    }
+    #maiMultBtn {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 15px 30px;
+      font-size: 1.1em;
+      border-radius: 10px;
+      cursor: pointer;
+      margin-top: 20px;
+      transition: 0.3s;
+    }
+    #maiMultBtn:hover {
+      background: #45a049;
+      transform: scale(1.05);
+    }
+    #restulEchipelor {
+      display: none;
+      margin-top: 20px;
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>Votează pentru cea mai bună alegere!</h1>
+  
+  <div id="timer" style="font-size: 2em; color: #ff6600; margin: 20px 0;">
+    Timp rămas: <span id="timp">60</span> secunde
+  </div>
+
+  <div class="optiune" onclick="vote('Mușat Mădălina+Mușat Gelu')"> Mușat Mădălina+Mușat Gelu</div>
+  <div class="optiune" onclick="vote('Moisei Bianca+Stoiculescu Rareș')">Moisei Bianca+Stoiculescu Rareș</div>
+  <div class="optiune" onclick="vote('Comănescu Maria+Toader Liviu')">Comănescu Maria+Toader Liviu</div>
+  <div class="optiune" onclick="vote('Enache Maria+Feraru Leonard')">Enache Maria+Feraru Leonard</div>
+  <div class="optiune" onclick="vote('Ciobotaru Maria+Roșu Rareș')">Ciobotaru Maria+Roșu Rareș</div>
+  <div class="optiune" onclick="vote('Balcan Beatrice+Tăbăcaru Mihăiță')">Balcan Beatrice+Tăbăcaru Mihăiță </div>
+  <div class="optiune" onclick="vote('Zaharia Gabriel+Niță Denisa')">Zaharia Gabriel+Niță Denisa</div>
+  <div class="optiune" onclick="vote('Sandu Răzvan+Halance Maria')">Sandu Răzvan+Halance Maria</div>
+  <div class="optiune" onclick="vote('Donici Luciana+Hârțanu Alex')">Donici Luciana+Hârțanu Alex</div>
+  <div class="optiune" onclick="vote('Alexandra Pene+Plesca Alex')">Alexandra Pene+Plesca Alex</div>
+  <div class="optiune" onclick="vote('Fluture Lorena+Ionuț')">Fluture Lorena+Ionuț</div>
+
+  <p id="rezultat">Votarea este în curs...</p>
+
+  <script>
+    const voturi = {
+      "Mușat Mădălina+Mușat Gelu": 0,
+      "Moisei Bianca+Stoiculescu Rareș": 0,
+      "Comănescu Maria+Toader Liviu": 0,
+      "Enache Maria+Feraru Leonard": 0,
+      "Ciobotaru Maria+Roșu Rareș": 0,
+      "Balcan Beatrice+Tăbăcaru Mihăiță": 0,
+      "Zaharia Gabriel+Niță Denisa": 0,
+      "Sandu Răzvan+Halance Maria": 0,
+      "Donici Luciana+Hârțanu Alex": 0,
+      "Alexandra Pene+Plesca Alex": 0,
+      "Fluture Lorena+Ionuț": 0,
+    };
+
+    let timpRamas = 60; // Secundele pentru votare
+    let votareActiva = true;
+    
+    // Verifică dacă utilizatorul a votat deja (chiar și după refresh)
+    let aVotat = localStorage.getItem('aVotat') === 'true';
+
+    // Dacă a votat deja, dezactivează butoanele de la început
+    if (aVotat) {
+      document.getElementById('rezultat').innerHTML = '✅ Ai votat deja! Așteptăm rezultatele...';
+      const optiuni = document.querySelectorAll('.optiune');
+      optiuni.forEach(opt => {
+        opt.style.opacity = '0.5';
+        opt.style.cursor = 'not-allowed';
+        opt.style.pointerEvents = 'none';
+      });
+    }
+
+    // Pornește timer-ul
+    const timerInterval = setInterval(() => {
+      timpRamas--;
+      document.getElementById('timp').textContent = timpRamas;
+      
+      if (timpRamas <= 0) {
+        clearInterval(timerInterval);
+        votareActiva = false;
+        afiseazaCastigatorFinal();
+      }
+    }, 1000);
+
+    function vote(pereche) {
+      if (!votareActiva) {
+        alert('Votarea s-a încheiat!');
+        return;
+      }
+
+      if (aVotat) {
+        alert('⚠️ Ai votat deja! Poți vota doar o singură dată!');
+        return;
+      }
+      
+      voturi[pereche]++;
+      aVotat = true;
+      
+      // Salvează în localStorage că utilizatorul a votat
+      localStorage.setItem('aVotat', 'true');
+      
+      document.getElementById('rezultat').innerHTML = '✅ Votul tău a fost înregistrat cu succes!<br>Nu mai poți vota din nou.';
+      
+      // Dezactivează vizual toate butoanele după vot
+      const optiuni = document.querySelectorAll('.optiune');
+      optiuni.forEach(opt => {
+        opt.style.opacity = '0.5';
+        opt.style.cursor = 'not-allowed';
+        opt.style.pointerEvents = 'none';
+      });
+    }
+
+    function arataRestul() {
+      const restul = document.getElementById('restulEchipelor');
+      const buton = document.getElementById('maiMultBtn');
+      if (restul.style.display === 'none' || restul.style.display === '') {
+        restul.style.display = 'block';
+        buton.textContent = '📊 Ascunde detaliile';
+      } else {
+        restul.style.display = 'none';
+        buton.textContent = '📊 Vezi toate echipele';
+      }
+    }
+
+    function afiseazaCastigatorFinal() {
+      // Sortează echipele după numărul de voturi
+      const sortate = Object.entries(voturi).sort((a, b) => b[1] - a[1]);
+      
+      let text = '<h2 style="color: red;">🔴 VOTAREA S-A ÎNCHEIAT! 🔴</h2><br>';
+      text += '<h2>🏆 TOP 3 ECHIPE 🏆</h2><br>';
+      
+      // Afișează TOP 3
+      if (sortate.length >= 1 && sortate[0][1] > 0) {
+        text += `<div class="podium loc1">
+                  🥇 LOCUL 1<br>
+                  <strong>${sortate[0][0]}</strong><br>
+                  ${sortate[0][1]} voturi
+                 </div><br>`;
+      }
+      
+      if (sortate.length >= 2 && sortate[1][1] > 0) {
+        text += `<div class="podium loc2">
+                  🥈 LOCUL 2<br>
+                  <strong>${sortate[1][0]}</strong><br>
+                  ${sortate[1][1]} voturi
+                 </div><br>`;
+      }
+      
+      if (sortate.length >= 3 && sortate[2][1] > 0) {
+        text += `<div class="podium loc3">
+                  🥉 LOCUL 3<br>
+                  <strong>${sortate[2][0]}</strong><br>
+                  ${sortate[2][1]} voturi
+                 </div><br>`;
+      }
+      
+      if (sortate[0][1] === 0) {
+        text += '<h3>Nu au fost înregistrate voturi.</h3>';
+      }
+      
+      // Buton pentru a vedea restul echipelor
+      if (sortate.length > 3) {
+        text += '<br><button id="maiMultBtn">📊 Vezi toate echipele</button>';
+        text += '<div id="restulEchipelor"><h3>Toate echipele:</h3>';
+        for (let i = 0; i < sortate.length; i++) {
+          text += `<p style="text-align: left; padding: 5px; border-bottom: 1px solid #ddd;">
+                    <strong>${i + 1}.</strong> ${sortate[i][0]} - <strong>${sortate[i][1]}</strong> voturi
+                   </p>`;
+        }
+        text += '</div>';
+      }
+      
+      document.getElementById('rezultat').innerHTML = text;
+      
+      // Adaugă event listener pentru buton DUPĂ ce a fost creat în DOM
+      const butonMaiMult = document.getElementById('maiMultBtn');
+      if (butonMaiMult) {
+        butonMaiMult.addEventListener('click', arataRestul);
+      }
+      
+      document.getElementById('timer').innerHTML = '<span style="color: red;">⏰ Timpul a expirat!</span>';
+      
+      // Dezactivează vizual butoanele
+      const optiuni = document.querySelectorAll('.optiune');
+      optiuni.forEach(opt => {
+        opt.style.opacity = '0.5';
+        opt.style.cursor = 'not-allowed';
+      });
+    }
+  </script>
+</body>
+
+</html>
