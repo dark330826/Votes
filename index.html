@@ -75,6 +75,10 @@
       margin-left: auto;
       margin-right: auto;
     }
+    .loading {
+      color: #ff6600;
+      font-size: 1.2em;
+    }
   </style>
 </head>
 <body>
@@ -84,42 +88,58 @@
     Timp rămas: <span id="timp">60</span> secunde
   </div>
 
-  <div class="optiune" onclick="vote('Mușat Mădălina+Mușat Gelu')"> Mușat Mădălina+Mușat Gelu</div>
+  <div class="optiune" onclick="vote('Mușat Mădălina+Mușat Gelu')">Mușat Mădălina+Mușat Gelu</div>
   <div class="optiune" onclick="vote('Moisei Bianca+Stoiculescu Rareș')">Moisei Bianca+Stoiculescu Rareș</div>
   <div class="optiune" onclick="vote('Comănescu Maria+Toader Liviu')">Comănescu Maria+Toader Liviu</div>
   <div class="optiune" onclick="vote('Enache Maria+Feraru Leonard')">Enache Maria+Feraru Leonard</div>
   <div class="optiune" onclick="vote('Ciobotaru Maria+Roșu Rareș')">Ciobotaru Maria+Roșu Rareș</div>
-  <div class="optiune" onclick="vote('Balcan Beatrice+Tăbăcaru Mihăiță')">Balcan Beatrice+Tăbăcaru Mihăiță </div>
+  <div class="optiune" onclick="vote('Balcan Beatrice+Tăbăcaru Mihăiță')">Balcan Beatrice+Tăbăcaru Mihăiță</div>
   <div class="optiune" onclick="vote('Zaharia Gabriel+Niță Denisa')">Zaharia Gabriel+Niță Denisa</div>
   <div class="optiune" onclick="vote('Sandu Răzvan+Halance Maria')">Sandu Răzvan+Halance Maria</div>
   <div class="optiune" onclick="vote('Donici Luciana+Hârțanu Alex')">Donici Luciana+Hârțanu Alex</div>
   <div class="optiune" onclick="vote('Alexandra Pene+Plesca Alex')">Alexandra Pene+Plesca Alex</div>
   <div class="optiune" onclick="vote('Fluture Lorena+Ionuț')">Fluture Lorena+Ionuț</div>
 
-  <p id="rezultat">Votarea este în curs...</p>
+  <p id="rezultat" class="loading">Se conectează la server...</p>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 
   <script>
-    const voturi = {
-      "Mușat Mădălina+Mușat Gelu": 0,
-      "Moisei Bianca+Stoiculescu Rareș": 0,
-      "Comănescu Maria+Toader Liviu": 0,
-      "Enache Maria+Feraru Leonard": 0,
-      "Ciobotaru Maria+Roșu Rareș": 0,
-      "Balcan Beatrice+Tăbăcaru Mihăiță": 0,
-      "Zaharia Gabriel+Niță Denisa": 0,
-      "Sandu Răzvan+Halance Maria": 0,
-      "Donici Luciana+Hârțanu Alex": 0,
-      "Alexandra Pene+Plesca Alex": 0,
-      "Fluture Lorena+Ionuț": 0,
+    // Configurația Firebase
+    const firebaseConfig = {
+      apiKey: "AIzaSyBzZMbmZEVeXsTQW3epazfE4XY9Q1gs6fg",
+      authDomain: "votes-7e548.firebaseapp.com",
+      databaseURL: "https://votes-7e548-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "votes-7e548",
+      storageBucket: "votes-7e548.firebasestorage.app",
+      messagingSenderId: "280980878187",
+      appId: "1:280980878187:web:87076554df6abec00cd22e"
     };
 
-    let timpRamas = 60; // Secundele pentru votare
+    // Inițializare Firebase
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+    const voturiRef = database.ref('voturi');
+
+    let timpRamas = 60;
     let votareActiva = true;
-    
-    // Verifică dacă utilizatorul a votat deja (chiar și după refresh)
     let aVotat = localStorage.getItem('aVotat') === 'true';
 
-    // Dacă a votat deja, dezactivează butoanele de la început
+    // Verifică conexiunea Firebase
+    database.ref('.info/connected').on('value', (snapshot) => {
+      if (snapshot.val() === true) {
+        console.log('✅ Conectat la Firebase!');
+        if (!aVotat && votareActiva) {
+          document.getElementById('rezultat').innerHTML = 'Votarea este în curs...';
+        }
+      } else {
+        console.log('❌ Deconectat de la Firebase');
+        document.getElementById('rezultat').innerHTML = '⚠️ Eroare de conexiune la server...';
+      }
+    });
+
     if (aVotat) {
       document.getElementById('rezultat').innerHTML = '✅ Ai votat deja! Așteptăm rezultatele...';
       const optiuni = document.querySelectorAll('.optiune');
@@ -130,7 +150,15 @@
       });
     }
 
-    // Pornește timer-ul
+    // Ascultă schimbările în timp real
+    voturiRef.on('value', (snapshot) => {
+      const data = snapshot.val();
+      if (!votareActiva && data) {
+        afiseazaCastigatorFinal(data);
+      }
+    });
+
+    // Timer pentru votare
     const timerInterval = setInterval(() => {
       timpRamas--;
       document.getElementById('timp').textContent = timpRamas;
@@ -138,7 +166,11 @@
       if (timpRamas <= 0) {
         clearInterval(timerInterval);
         votareActiva = false;
-        afiseazaCastigatorFinal();
+        
+        voturiRef.once('value').then((snapshot) => {
+          const data = snapshot.val() || {};
+          afiseazaCastigatorFinal(data);
+        });
       }
     }, 1000);
 
@@ -153,15 +185,24 @@
         return;
       }
       
-      voturi[pereche]++;
-      aVotat = true;
+      const perecheKey = pereche.replace(/[.#$[\]]/g, '_');
+      const perecheRef = database.ref('voturi/' + perecheKey);
       
-      // Salvează în localStorage că utilizatorul a votat
+      perecheRef.transaction((currentValue) => {
+        return (currentValue || 0) + 1;
+      }).then(() => {
+        console.log('✅ Vot salvat în Firebase!');
+      }).catch((error) => {
+        console.error('❌ Eroare la salvarea votului:', error);
+        alert('Eroare la înregistrarea votului. Încearcă din nou!');
+        return;
+      });
+      
+      aVotat = true;
       localStorage.setItem('aVotat', 'true');
       
       document.getElementById('rezultat').innerHTML = '✅ Votul tău a fost înregistrat cu succes!<br>Nu mai poți vota din nou.';
       
-      // Dezactivează vizual toate butoanele după vot
       const optiuni = document.querySelectorAll('.optiune');
       optiuni.forEach(opt => {
         opt.style.opacity = '0.5';
@@ -182,14 +223,18 @@
       }
     }
 
-    function afiseazaCastigatorFinal() {
-      // Sortează echipele după numărul de voturi
-      const sortate = Object.entries(voturi).sort((a, b) => b[1] - a[1]);
+    function afiseazaCastigatorFinal(voturi) {
+      const voturiOriginale = {};
+      for (let key in voturi) {
+        const numeOriginal = key.replace(/_/g, '+');
+        voturiOriginale[numeOriginal] = voturi[key];
+      }
+      
+      const sortate = Object.entries(voturiOriginale).sort((a, b) => b[1] - a[1]);
       
       let text = '<h2 style="color: red;">🔴 VOTAREA S-A ÎNCHEIAT! 🔴</h2><br>';
       text += '<h2>🏆 TOP 3 ECHIPE 🏆</h2><br>';
       
-      // Afișează TOP 3
       if (sortate.length >= 1 && sortate[0][1] > 0) {
         text += `<div class="podium loc1">
                   🥇 LOCUL 1<br>
@@ -214,13 +259,12 @@
                  </div><br>`;
       }
       
-      if (sortate[0][1] === 0) {
+      if (sortate.length === 0 || sortate[0][1] === 0) {
         text += '<h3>Nu au fost înregistrate voturi.</h3>';
       }
       
-      // Buton pentru a vedea restul echipelor
       if (sortate.length > 3) {
-        text += '<br><button id="maiMultBtn">📊 Vezi toate echipele</button>';
+        text += '<br><button id="maiMultBtn" onclick="arataRestul()">📊 Vezi toate echipele</button>';
         text += '<div id="restulEchipelor"><h3>Toate echipele:</h3>';
         for (let i = 0; i < sortate.length; i++) {
           text += `<p style="text-align: left; padding: 5px; border-bottom: 1px solid #ddd;">
@@ -231,16 +275,8 @@
       }
       
       document.getElementById('rezultat').innerHTML = text;
-      
-      // Adaugă event listener pentru buton DUPĂ ce a fost creat în DOM
-      const butonMaiMult = document.getElementById('maiMultBtn');
-      if (butonMaiMult) {
-        butonMaiMult.addEventListener('click', arataRestul);
-      }
-      
       document.getElementById('timer').innerHTML = '<span style="color: red;">⏰ Timpul a expirat!</span>';
       
-      // Dezactivează vizual butoanele
       const optiuni = document.querySelectorAll('.optiune');
       optiuni.forEach(opt => {
         opt.style.opacity = '0.5';
@@ -249,5 +285,4 @@
     }
   </script>
 </body>
-
 </html>
